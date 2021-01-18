@@ -1,0 +1,38 @@
+// app/service/news.js
+const Service = require("egg").Service;
+
+class NewsService extends Service {
+  async list(page = 1) {
+    //post 中的 body 需要使用 ctx.request.body 获取
+    // read config
+    const { serverUrl, pageSize } = this.config.news;
+
+    // use build-in http client to GET hacker-news api
+    const { data: idList } = await this.ctx.curl(
+      `${serverUrl}/topstories.json`,
+      {
+        data: {
+          orderBy: '"$key"',
+          startAt: `"${pageSize * (page - 1)}"`,
+          endAt: `"${pageSize * page - 1}"`,
+        },
+        dataType: "json",
+        timeout: 120000,
+      }
+    );
+
+    // parallel GET detail
+    const newsList = await Promise.all(
+      Object.keys(idList).map((key) => {
+        const url = `${serverUrl}/item/${idList[key]}.json`;
+        return this.ctx.curl(url, {
+          dataType: "json",
+          timeout: 120000,
+        });
+      })
+    );
+    return newsList.map((res) => res.data);
+  }
+}
+
+module.exports = NewsService;
